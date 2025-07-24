@@ -2,9 +2,15 @@ import requests
 import pandas as pd
 import openpyxl
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Steam API Information
-API_KEY = os.getenv('STEAM_API_KEY', 'E38C84A35DD1546893005B2E960CA288')  # Use environment variable
+API_KEY = os.getenv('STEAM_API_KEY')  # Use environment variable
+if not API_KEY:
+    raise ValueError("STEAM_API_KEY environment variable is required")
 STEAM_ID = '76561198074846013'
 
 # URL for the Steam API GetOwnedGames method
