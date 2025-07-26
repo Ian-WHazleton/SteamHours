@@ -42,6 +42,28 @@ python SteamAPI_Caller.py
 
 This will fetch your Steam games and playtime, then save the data to `steam_games_playtime.xlsx`.
 
+## GitHub Actions Setup (Optional)
+
+To run this automatically on GitHub using GitHub Actions:
+
+1. **Set up GitHub Secret:**
+   - Go to your GitHub repository
+   - Click Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `STEAM_API_KEY`
+   - Value: Your Steam API key
+   - Click "Add secret"
+
+2. **The workflow will:**
+   - Run daily at 12:00 UTC (or manually trigger)
+   - Fetch your Steam game data
+   - Save the Excel file as a downloadable artifact
+
+3. **To run manually:**
+   - Go to Actions tab in your GitHub repo
+   - Click "Update Steam Game Data" workflow
+   - Click "Run workflow"
+
 ## Security Note
 
-Never commit your `.env` file or expose your Steam API key in your code. The `.gitignore` file is configured to exclude sensitive files.
+Never commit your `.env` file or expose your Steam API key in your code. The `.gitignore` file is configured to exclude sensitive files. Use GitHub Secrets for automated workflows.

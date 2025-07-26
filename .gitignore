@@ -39,3 +39,7 @@ Thumbs.db
 # Project specific
 *.xlsx
 *.xls
+
+# Log files
+*.log
+game_errors.log

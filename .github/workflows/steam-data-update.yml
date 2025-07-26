@@ -1,0 +1,39 @@
+name: Update Steam Game Data
+
+on:
+  # Run manually
+  workflow_dispatch:
+  
+  # Run on schedule (daily at 12:00 UTC)
+  schedule:
+    - cron: '0 12 * * *'
+
+jobs:
+  update-steam-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests pandas openpyxl python-dotenv
+    
+    - name: Run Steam API caller
+      env:
+        STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
+      run: python SteamAPI_Caller.py
+    
+    - name: Upload Excel file as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: steam-games-data
+        path: steam_games_playtime.xlsx
+        retention-days: 30
