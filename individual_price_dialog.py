@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget, QMessageBox
-from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QScrollArea, QWidget, QMessageBox
+from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt
 
 class IndividualPriceDialog(QDialog):
     def __init__(self, bundle_games, total_cost, parent=None):
@@ -69,7 +69,7 @@ class IndividualPriceDialog(QDialog):
         
         # Add title
         title_label = QLabel('Multi Purchase - Enter Individual Prices')
-        title_label.setFont(QFont("Arial", 14, QFont.Bold))
+        title_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         layout.addWidget(title_label)
         
         # Add explanation
@@ -232,14 +232,14 @@ class IndividualPriceDialog(QDialog):
         if abs(total_entered - self.total_cost) > 0.01:
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Total Mismatch")
-            msg_box.setIcon(QMessageBox.Question)
+            msg_box.setIcon(QMessageBox.Icon.Question)
             msg_box.setText(
                 f"Individual prices total: ${total_entered:.2f}\n"
                 f"Bundle cost: ${self.total_cost:.2f}\n"
                 f"Difference: ${abs(total_entered - self.total_cost):.2f}\n\n"
                 "Do you want to continue anyway?"
             )
-            msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             msg_box.setStyleSheet("""
                 QMessageBox {
                     background-color: #2b2b2b;
@@ -262,7 +262,7 @@ class IndividualPriceDialog(QDialog):
             """)
             
             reply = msg_box.exec_()
-            if reply != QMessageBox.Yes:
+            if reply != QMessageBox.StandardButton.Yes:
                 return
         
         self.individual_prices = individual_prices

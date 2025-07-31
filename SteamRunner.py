@@ -1,9 +1,10 @@
 import random
 import csv
 import re
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QHBoxLayout, QVBoxLayout, QWidget, QSpacerItem, QSizePolicy, QPushButton, QGridLayout, QMessageBox, QInputDialog, QCheckBox, QDialog, QLineEdit, QFileDialog, QTextEdit
-from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt, QTimer
+from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QHBoxLayout, QVBoxLayout, QWidget, QSpacerItem, QSizePolicy, QPushButton, QGridLayout, QMessageBox, QInputDialog, QCheckBox, QDialog, QFileDialog, QTextEdit
+from custom_textbox import CustomTextBox
+from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, QTimer
 import sys
 import openpyxl
 from SteamAPI_Caller import update_spreadsheet
@@ -66,7 +67,7 @@ class GameLookupDialog(QDialog):
         self.label = QLabel('Enter Steam App ID:')
         layout.addWidget(self.label)
         
-        self.input_field = QLineEdit()
+        self.input_field = CustomTextBox()
         layout.addWidget(self.input_field)
         
         # Add checkbox
@@ -208,11 +209,11 @@ class MainWindow(QMainWindow):
 
         number_label = QLabel(number, self)
         number_label.setFont(QFont("Arial", 24))
-        number_label.setAlignment(Qt.AlignCenter)
+        number_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         caption_label = QLabel(caption, self)
         caption_label.setFont(QFont("Arial", 12))
-        caption_label.setAlignment(Qt.AlignCenter)
+        caption_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Add the labels to the box layout
         box_layout.addWidget(number_label)
@@ -254,6 +255,12 @@ class MainWindow(QMainWindow):
         """Perform the update of Steam data."""
         try:
             # Update the spreadsheet
+            from SteamAPI_Caller import get_api_key
+            api_key = get_api_key()
+            if not api_key:
+                self.show_styled_message_box("Steam API Key Error", "Steam API key not found. Please check your .env file.", QMessageBox.Icon.Critical)
+                return
+
             update_spreadsheet()
 
             # Get the updated values using SteamData
@@ -273,7 +280,7 @@ class MainWindow(QMainWindow):
             
         except Exception as e:
             # Show error notification if update fails
-            self.show_styled_message_box("Update Failed", f"Failed to update Steam data: {str(e)}", QMessageBox.Critical)
+            self.show_styled_message_box("Update Failed", f"Failed to update Steam data: {str(e)}", QMessageBox.Icon.Critical)
         finally:
             # Restore button state
             self.update_button.setText("Update Steam Info")
@@ -324,8 +331,8 @@ class MainWindow(QMainWindow):
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Random Game Selected")
         msg_box.setText(f"You got: {game_name}")
-        msg_box.setIcon(QMessageBox.Information)
-        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.setIcon(QMessageBox.Icon.Information)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg_box.setStyleSheet("""
             QMessageBox {
                 background-color: #2b2b2b;
@@ -346,14 +353,14 @@ class MainWindow(QMainWindow):
                 background-color: #45a049;
             }
         """)
-        msg_box.exec_()
+        msg_box.exec()
 
     def lookup_game_hours(self):
         """Prompt user for a Steam App ID and show the hours played for that game."""
         # Open custom dialog to get the Steam App ID and data source choice
         dialog = GameLookupDialog(self)
         
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.Accepted:
             app_id, use_api = dialog.get_values()
             
             if app_id.strip():
@@ -493,7 +500,7 @@ class MainWindow(QMainWindow):
                 border: none;
                 padding: 8px 16px;
                 margin: 5px 2px;
-                min-width: 80px;
+            self.show_styled_message_box("Update Failed", f"Failed to update Steam data: {str(e)}", QMessageBox.Icon.Critical)
             }
             QPushButton:hover {
                 background-color: #45a049;
@@ -504,7 +511,7 @@ class MainWindow(QMainWindow):
         instruction_label = QLabel('Enter game name to search:')
         layout.addWidget(instruction_label)
         
-        game_input = QLineEdit()
+        game_input = CustomTextBox()
         layout.addWidget(game_input)
         
         button_layout = QHBoxLayout()
@@ -520,7 +527,7 @@ class MainWindow(QMainWindow):
         
         dialog.setLayout(layout)
         
-        if dialog.exec_() != QDialog.Accepted:
+        if dialog.exec() != QDialog.Accepted:
             return
             
         game_name = game_input.text().strip()
@@ -652,15 +659,15 @@ class MainWindow(QMainWindow):
         layout.addWidget(close_button)
         
         dialog.setLayout(layout)
-        dialog.exec_()
+        dialog.exec()
 
     def show_success_notification(self, title, details):
         """Show a success notification popup."""
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle(title)
         msg_box.setText(details)
-        msg_box.setIcon(QMessageBox.Information)
-        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.setIcon(QMessageBox.Icon.Information)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
         
         msg_box.setStyleSheet("""
             QMessageBox {
@@ -685,7 +692,7 @@ class MainWindow(QMainWindow):
         
         # Auto-close the dialog after 3 seconds
         QTimer.singleShot(3000, msg_box.close)
-        msg_box.exec_()
+        msg_box.exec()
 
     def show_styled_message_box(self, title, message, icon_type):
         """Show a styled message box with white text."""
@@ -693,7 +700,7 @@ class MainWindow(QMainWindow):
         msg_box.setWindowTitle(title)
         msg_box.setText(message)
         msg_box.setIcon(icon_type)
-        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg_box.setStyleSheet("""
             QMessageBox {
                 background-color: #2b2b2b;
@@ -714,15 +721,15 @@ class MainWindow(QMainWindow):
                 background-color: #45a049;
             }
         """)
-        msg_box.exec_()
+        msg_box.exec()
 
     def show_game_hours_popup(self, game_name, app_id, hours_played):
         """Show a pop-up window with the game's hours played."""
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Game Hours Found")
         msg_box.setText(f"Game: {game_name}\nApp ID: {app_id}\nHours Played: {hours_played}")
-        msg_box.setIcon(QMessageBox.Information)
-        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.setIcon(QMessageBox.Icon.Information)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg_box.setStyleSheet("""
             QMessageBox {
                 background-color: #2b2b2b;
@@ -743,15 +750,15 @@ class MainWindow(QMainWindow):
                 background-color: #45a049;
             }
         """)
-        msg_box.exec_()
+        msg_box.exec()
 
     def show_game_not_found_popup(self, app_id):
         """Show a pop-up when the game is not found."""
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Game Not Found")
         msg_box.setText(f"No game found with App ID: {app_id}\n\nThis could mean:\n- You don't own this game\n- The game wasn't included in your last data update\n- The App ID is incorrect")
-        msg_box.setIcon(QMessageBox.Information)
-        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.setIcon(QMessageBox.Icon.Information)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg_box.setStyleSheet("""
             QMessageBox {
                 background-color: #2b2b2b;
@@ -772,10 +779,10 @@ class MainWindow(QMainWindow):
                 background-color: #45a049;
             }
         """)
-        msg_box.exec_()
+        msg_box.exec()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

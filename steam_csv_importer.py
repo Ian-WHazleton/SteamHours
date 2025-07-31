@@ -1,10 +1,9 @@
 import csv
 import re
 import openpyxl
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, QTextEdit, QProgressDialog
-from PyQt5.QtGui import QFont
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, QTextEdit, QProgressDialog, QApplication
+from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from SteamAPI_Caller import get_bundle_prices
 from individual_price_dialog import IndividualPriceDialog
 from game_search import calculate_similarity_score, find_best_matches, EDITION_SUFFIXES, normalize_game_name, roman_to_int, int_to_roman, normalize_numbers_in_title, extract_cost_from_string
@@ -48,7 +47,7 @@ class PriceBreakdownDialog(QDialog):
         
         # Title
         title_label = QLabel(f'{purchase_type} Price Breakdown')
-        title_label.setFont(QFont("Arial", 14, QFont.Bold))
+        title_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         layout.addWidget(title_label)
         
         # Summary
@@ -230,7 +229,7 @@ class BundleTypeDialog(QDialog):
         
         # Add title
         title_label = QLabel('Bundle Detected!')
-        title_label.setFont(QFont("Arial", 14, QFont.Bold))
+        title_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         layout.addWidget(title_label)
         
         # Show bundle info
@@ -251,7 +250,7 @@ class BundleTypeDialog(QDialog):
         
         # Add question
         question_label = QLabel('\nHow should this be handled?')
-        question_label.setFont(QFont("Arial", 12, QFont.Bold))
+        question_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         layout.addWidget(question_label)
         
         # Add explanation
@@ -313,7 +312,7 @@ class ImportProgressDialog(QDialog):
         
         # Title label
         self.title_label = QLabel('Importing Steam game data from CSV...')
-        self.title_label.setFont(QFont("Arial", 12, QFont.Bold))
+        self.title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         layout.addWidget(self.title_label)
         
         # Current operation label
@@ -321,7 +320,7 @@ class ImportProgressDialog(QDialog):
         layout.addWidget(self.status_label)
         
         # Progress bar
-        from PyQt5.QtWidgets import QProgressBar
+        from PyQt6.QtWidgets import QProgressBar
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, total_items)
         self.progress_bar.setValue(0)
@@ -737,7 +736,7 @@ class SteamCSVImporter:
                 app_id = self._find_game_in_library(game_name, sheet)
                 if not app_id:
                     # Game not found, ask user for App ID
-                    from PyQt5.QtWidgets import QDialog
+                    from PyQt6.QtWidgets import QDialog
                     dialog = GameIdInputDialog(game_name, self.parent)
                     id_result = dialog.exec_()
                     
@@ -922,7 +921,7 @@ class SteamCSVImporter:
     
     def _confirm_edition_match(self, searched_game, found_game, removed_suffix):
         """Ask user to confirm if a game edition matches the base game."""
-        from PyQt5.QtWidgets import QMessageBox
+        from PyQt6.QtWidgets import QMessageBox
         
         if not self.parent:
             # If no parent window, assume it's the same game (for testing)
@@ -931,7 +930,7 @@ class SteamCSVImporter:
         # Create confirmation dialog
         msg_box = QMessageBox(self.parent)
         msg_box.setWindowTitle("Edition Match Found")
-        msg_box.setIcon(QMessageBox.Question)
+        msg_box.setIcon(QMessageBox.Icon.Question)
         
         msg_box.setText(f"Found potential match for edition:")
         msg_box.setInformativeText(
@@ -941,8 +940,8 @@ class SteamCSVImporter:
             f"Are these the same game?"
         )
         
-        msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-        msg_box.setDefaultButton(QMessageBox.Yes)
+        msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
         
         # Apply dark theme styling
         msg_box.setStyleSheet("""
@@ -967,7 +966,7 @@ class SteamCSVImporter:
         """)
         
         result = msg_box.exec_()
-        return result == QMessageBox.Yes
+        return result == QMessageBox.StandardButton.Yes
     
     def _is_good_match(self, name1, name2):
         """Check if two game names are a good match, including Roman numeral variations."""

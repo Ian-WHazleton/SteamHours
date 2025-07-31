@@ -6,8 +6,10 @@ from dotenv import load_dotenv
 
 def get_api_key():
     """Get the Steam API key using the same method as the game lookup function."""
-    load_dotenv()
+    # For GitHub Actions, STEAM_API_KEY should be set as an environment variable (Repository Secret)
+    print("STEAM_API_KEY:", os.getenv('STEAM_API_KEY'))
     return os.getenv('STEAM_API_KEY')
+
 
 # Steam API Information - will be loaded when needed
 STEAM_ID = '76561198074846013'
@@ -15,6 +17,7 @@ STEAM_ID = '76561198074846013'
 def fetch_steam_games():
     """Fetch games data from Steam API."""
     API_KEY = get_api_key()
+    print (API_KEY)
     if not API_KEY:
         print("Steam API key not found. Please check your .env file.")
         return []
