@@ -186,13 +186,55 @@ class MainWindow(QMainWindow):
         # Set the layout for the central widget
         central_widget.setLayout(main_layout)
 
+        # Check for spreadsheet existence on startup
+        import os
+        spreadsheet_path = 'ExcelFiles\\steam_games_playtime.xlsx'
+
+        if not os.path.exists(spreadsheet_path):
+            # Custom popup: Create empty sheet or close
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Missing Spreadsheet")
+            msg_box.setText(f"The required spreadsheet was not found at:\n{spreadsheet_path}\n\nWould you like to create an empty sheet or close and move the file there?")
+            msg_box.setIcon(QMessageBox.Icon.Critical)
+            create_button = msg_box.addButton("Create Empty Sheet", QMessageBox.ButtonRole.AcceptRole)
+            close_button = msg_box.addButton("Close App", QMessageBox.ButtonRole.RejectRole)
+            msg_box.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2b2b2b;
+                    color: white;
+                }
+                QMessageBox QLabel {
+                    color: white;
+                }
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    margin: 2px;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+            """)
+            msg_box.exec()
+
+            # Check which button was pressed using buttonRole
+            clicked_role = msg_box.buttonRole(msg_box.clickedButton())
+            if clicked_role == QMessageBox.ButtonRole.AcceptRole:
+                from SteamAPI_Caller import create_blank_steam_spreadsheet
+                create_blank_steam_spreadsheet(spreadsheet_path)
+            else:
+                sys.exit()
+
         # Load initial data from spreadsheet on startup
         self.load_initial_data()
 
     def load_initial_data(self):
         """Load initial data from the spreadsheet on startup."""
         try:
-            total_games, total_hours, average_playtime = get_data_from_spreadsheet(r'D:\SteamHours\ExcelFiles\steam_games_playtime.xlsx')
+            total_games, total_hours, average_playtime = get_data_from_spreadsheet('ExcelFiles/steam_games_playtime.xlsx')
             
             # Update the labels with the loaded data
             self.total_games_label.setText(str(total_games))
@@ -264,7 +306,7 @@ class MainWindow(QMainWindow):
             update_spreadsheet()
 
             # Get the updated values using SteamData
-            total_games, total_hours, average_playtime = get_data_from_spreadsheet(r'D:\SteamHours\ExcelFiles\steam_games_playtime.xlsx')
+            total_games, total_hours, average_playtime = get_data_from_spreadsheet('ExcelFiles/steam_games_playtime.xlsx')
 
             # Update the labels with the new data
             self.total_games_label.setText(str(total_games))
@@ -284,7 +326,7 @@ class MainWindow(QMainWindow):
         finally:
             # Restore button state
             self.update_button.setText("Update Steam Info")
-            self.update_button.setEnabled(True)
+            spreadsheet_path = 'ExcelFiles/steam_games_playtime.xlsx'
 
             # Stop the throbber
             self.stop_throbber()
@@ -310,7 +352,7 @@ class MainWindow(QMainWindow):
 
     def select_random_game(self):
         """Select a random game from the spreadsheet and display its name."""
-        spreadsheet_path = r'D:\SteamHours\ExcelFiles\steam_games_playtime.xlsx'
+        spreadsheet_path = 'ExcelFiles/steam_games_playtime.xlsx'
         workbook = openpyxl.load_workbook(spreadsheet_path)
 
         if 'Steam Games Playtime' in workbook.sheetnames:
@@ -359,8 +401,8 @@ class MainWindow(QMainWindow):
         """Prompt user for a Steam App ID and show the hours played for that game."""
         # Open custom dialog to get the Steam App ID and data source choice
         dialog = GameLookupDialog(self)
-        
-        if dialog.exec() == QDialog.Accepted:
+
+        if dialog.exec() == QDialog.accepted:
             app_id, use_api = dialog.get_values()
             
             if app_id.strip():
@@ -398,7 +440,7 @@ class MainWindow(QMainWindow):
             if response.status_code == 200:
                 games_data = response.json().get('response', {}).get('games', [])
                 
-                # Search for the specific game
+                # Search for the specific games
                 for game in games_data:
                     if str(game.get('appid', '')) == app_id:
                         game_name = game.get('name', 'Unknown Game')
@@ -420,7 +462,7 @@ class MainWindow(QMainWindow):
         """Look up game hours from spreadsheet."""
         try:
             # Search for the game in the spreadsheet
-            spreadsheet_path = r'D:\SteamHours\ExcelFiles\steam_games_playtime.xlsx'
+            spreadsheet_path = 'ExcelFiles/steam_games_playtime.xlsx'
             workbook = openpyxl.load_workbook(spreadsheet_path)
             
             if 'Steam Games Playtime' in workbook.sheetnames:
@@ -453,19 +495,30 @@ class MainWindow(QMainWindow):
         # Open file dialog to select CSV file
         file_dialog = QFileDialog()
         csv_file, _ = file_dialog.getOpenFileName(
-            self, 
-            "Select CSV File", 
-            "d:\\SteamHours\\ExcelFiles\\", 
+            self,
+            "Select CSV File",
+            "ExcelFiles/",
             "CSV Files (*.csv);;All Files (*)"
         )
         
         if not csv_file:
+            print("No file selected.")
             return  # User cancelled
-        
+
+        print(f"Selected CSV file: {csv_file}")
+        import os
+        if not os.path.isfile(csv_file):
+            self.show_styled_message_box("File Error", f"Selected file does not exist: {csv_file}", QMessageBox.Icon.Critical)
+            return
+
         # Create CSV importer and run import
         importer = SteamCSVImporter(parent_window=self)
-        success, result = importer.import_from_file(csv_file)
-        
+        try:
+            success, result = importer.import_from_file(csv_file)
+        except Exception as e:
+            self.show_styled_message_box("Import Error", f"Exception during import: {str(e)}", QMessageBox.Icon.Critical)
+            return
+
         if success:
             # Show success message
             stats = result
@@ -473,7 +526,7 @@ class MainWindow(QMainWindow):
             self.show_success_notification("CSV Import Complete", message)
         else:
             # Show error message
-            self.show_styled_message_box("Import Error", result, QMessageBox.Critical)
+            self.show_styled_message_box("Import Error", result, QMessageBox.Icon.Critical)
 
     def search_game_stats(self):
         """Search for game stats by typing the game name."""

@@ -1,3 +1,32 @@
+# Utility to create a blank Excel file with the correct title row
+def create_blank_steam_spreadsheet(spreadsheet_path=None):
+    """Create a blank Excel file with the correct title row for Steam games data."""
+    import openpyxl
+    if spreadsheet_path is None:
+        spreadsheet_path = 'ExcelFiles/steam_games_playtime.xlsx'
+
+    # Define the header row
+    headers = [
+        "Game Name",
+        "App ID",
+        "Hours Played",
+        "Purchase Cost",
+        "Purchase Date",
+        "Purchase Method"
+    ]
+
+    # Create a new workbook and sheet
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Steam Games Playtime'
+    ws.append(headers)
+
+    # Save the workbook
+    try:
+        wb.save(spreadsheet_path)
+        print(f"Blank spreadsheet created at {spreadsheet_path}")
+    except Exception as e:
+        print(f"Error creating blank spreadsheet: {e}")
 import requests
 import pandas as pd
 import openpyxl
@@ -7,7 +36,6 @@ from dotenv import load_dotenv
 def get_api_key():
     """Get the Steam API key using the same method as the game lookup function."""
     # For GitHub Actions, STEAM_API_KEY should be set as an environment variable (Repository Secret)
-    print("STEAM_API_KEY:", os.getenv('STEAM_API_KEY'))
     return os.getenv('STEAM_API_KEY')
 
 
@@ -17,7 +45,6 @@ STEAM_ID = '76561198074846013'
 def fetch_steam_games():
     """Fetch games data from Steam API."""
     API_KEY = get_api_key()
-    print (API_KEY)
     if not API_KEY:
         print("Steam API key not found. Please check your .env file.")
         return []
@@ -64,7 +91,7 @@ def update_spreadsheet():
     df = pd.DataFrame(games_list)
 
     # Path to the spreadsheet (updating to match SteamRunner.py expectation)
-    spreadsheet_path = r'D:\SteamHours\ExcelFiles\steam_games_playtime.xlsx'
+    spreadsheet_path = 'ExcelFiles/steam_games_playtime.xlsx'
 
     # Write the DataFrame to the spreadsheet
     if not df.empty:

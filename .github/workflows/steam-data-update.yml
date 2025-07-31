@@ -26,12 +26,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests pandas openpyxl python-dotenv
     
-    - name: Debug STEAM_API_KEY presence
-      run: |
-        if [ -z "$STEAM_API_KEY" ]; then echo "STEAM_API_KEY is not set"; else echo "STEAM_API_KEY is set"; fi
-      env:
-        STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
-    
     - name: Run Steam API caller
       env:
         STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}

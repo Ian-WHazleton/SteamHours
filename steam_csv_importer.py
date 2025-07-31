@@ -333,7 +333,7 @@ class ImportProgressDialog(QDialog):
         self.setLayout(layout)
         
         # Make dialog non-closable during import
-        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
+        self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.CustomizeWindowHint | Qt.WindowType.WindowTitleHint)
     
     def update_progress(self, current, status_text, processed=0, added=0, skipped=0):
         """Update the progress dialog with current status."""
@@ -351,7 +351,7 @@ class ImportProgressDialog(QDialog):
 class SteamCSVImporter:
     def __init__(self, parent_window=None):
         self.parent = parent_window
-        self.spreadsheet_path = r'D:\SteamHours\ExcelFiles\steam_games_playtime.xlsx'
+        self.spreadsheet_path = 'ExcelFiles/steam_games_playtime.xlsx'
         # Cache for Steam API calls to avoid redundant requests
         self.steam_price_cache = {}
         self.app_id_cache = {}
@@ -417,12 +417,12 @@ class SteamCSVImporter:
                     bundle_games = purchase['bundle_games']
                     total_cost = purchase['cost']
                     
-                    dialog = BundleTypeDialog(bundle_games, total_cost, self.parent)
-                    result = dialog.exec_()
-                    
-                    if result == 1:  # Multi Purchase - get individual prices from user
+                dialog = BundleTypeDialog(bundle_games, total_cost, self.parent)
+                result = dialog.exec()
+
+                if result == 1:  # Multi Purchase - get individual prices from user
                         individual_price_dialog = IndividualPriceDialog(bundle_games, total_cost, self.parent)
-                        price_result = individual_price_dialog.exec_()
+                        price_result = individual_price_dialog.exec()
                         
                         if price_result == QDialog.Accepted:
                             individual_prices = individual_price_dialog.get_individual_prices()
@@ -431,7 +431,7 @@ class SteamCSVImporter:
                             breakdown_dialog = PriceBreakdownDialog(
                                 individual_prices, total_cost, "Multi Purchase", self.parent
                             )
-                            breakdown_result = breakdown_dialog.exec_()
+                            breakdown_result = breakdown_dialog.exec()
                             
                             if breakdown_result == QDialog.Accepted:
                                 for game_name in bundle_games:
@@ -444,6 +444,7 @@ class SteamCSVImporter:
                                     if result == 'added':
                                         games_added += 1
                                     elif result == 'skipped':
+                                        print(f"Game skipped: {game_name} (multi purchase)")
                                         games_skipped += 1
                             else:
                                 # User cancelled price breakdown, skip this bundle
@@ -451,7 +452,7 @@ class SteamCSVImporter:
                         else:
                             # User cancelled individual price entry, skip this bundle
                             continue
-                    elif result == 3:  # Weighted Purchase - distribute based on Steam prices
+                elif result == 3:  # Weighted Purchase - distribute based on Steam prices
                         progress_dialog.set_status("Fetching Steam prices for weighted distribution...")
                         calc_result = self._calculate_weighted_costs(bundle_games, total_cost, sheet)
                         if calc_result and len(calc_result) == 4:
@@ -461,7 +462,7 @@ class SteamCSVImporter:
                                 weighted_costs, total_cost, "Weighted Purchase", self.parent, 
                                 steam_prices=steam_prices, total_steam_value=total_steam_value, game_app_ids=game_app_ids
                             )
-                            breakdown_result = breakdown_dialog.exec_()
+                            breakdown_result = breakdown_dialog.exec()
                             
                             if breakdown_result == QDialog.Accepted:
                                 for game_name, weighted_cost in weighted_costs.items():
@@ -475,6 +476,7 @@ class SteamCSVImporter:
                                     if result == 'added':
                                         games_added += 1
                                     elif result == 'skipped':
+                                        print(f"Game skipped: {game_name} (weighted purchase)")
                                         games_skipped += 1
                             else:
                                 # User cancelled price breakdown, skip this bundle
@@ -494,7 +496,7 @@ class SteamCSVImporter:
                             breakdown_dialog = PriceBreakdownDialog(
                                 equal_split_costs, total_cost, "Equal Split (Fallback)", self.parent
                             )
-                            breakdown_result = breakdown_dialog.exec_()
+                            breakdown_result = breakdown_dialog.exec()
                             
                             if breakdown_result == QDialog.Accepted:
                                 for game_name in bundle_games:
@@ -507,24 +509,27 @@ class SteamCSVImporter:
                                     if result == 'added':
                                         games_added += 1
                                     elif result == 'skipped':
+                                        print(f"Game skipped: {game_name} (equal split fallback)")
                                         games_skipped += 1
                             else:
                                 # User cancelled, skip this bundle
                                 continue
-                    else:  # Cancel
-                        continue
-                else:
-                    # Single game purchase
-                    game_name = purchase['bundle_games'][0]
-                    result = self._process_single_game(
-                        game_name, purchase['cost'], purchase['date'], "Steam",
-                        existing_games, sheet, games_processed, games_added, games_skipped
-                    )
-                    games_processed += 1
-                    if result == 'added':
-                        games_added += 1
-                    elif result == 'skipped' or result == 'cancelled':
-                        games_skipped += 1
+                else:  # Cancel at bundle dialog
+                    games_skipped += len(bundle_games)
+                    continue
+                # Single game purchase
+                game_name = purchase['bundle_games'][0]
+                result = self._process_single_game(
+                    game_name, purchase['cost'], purchase['date'], "Steam",
+                    existing_games, sheet, games_processed, games_added, games_skipped
+                )
+                games_processed += 1
+                if result == 'added':
+                    games_added += 1
+                elif result == 'skipped':
+                    games_skipped += 1
+                elif result == 'cancelled':
+                    games_skipped += 1
             
             # Final progress update
             progress_dialog.update_progress(
@@ -551,6 +556,7 @@ class SteamCSVImporter:
             return False, "CSV file or spreadsheet not found"
         except Exception as e:
             # Make sure progress dialog is closed if it exists
+            print(f"Exception during import_from_file: {e}")
             try:
                 progress_dialog.close()
             except:
@@ -674,7 +680,7 @@ class SteamCSVImporter:
         if not app_id:
             # Game not found, ask user for App ID
             dialog = GameIdInputDialog(game_name, self.parent)
-            id_result = dialog.exec_()
+            id_result = dialog.exec()
             
             if id_result == QDialog.Accepted:
                 user_app_id = dialog.get_app_id()
@@ -738,7 +744,7 @@ class SteamCSVImporter:
                     # Game not found, ask user for App ID
                     from PyQt6.QtWidgets import QDialog
                     dialog = GameIdInputDialog(game_name, self.parent)
-                    id_result = dialog.exec_()
+                    id_result = dialog.exec()
                     
                     if id_result == QDialog.Accepted:
                         user_app_id = dialog.get_app_id()
@@ -965,7 +971,7 @@ class SteamCSVImporter:
             }
         """)
         
-        result = msg_box.exec_()
+        result = msg_box.exec()
         return result == QMessageBox.StandardButton.Yes
     
     def _is_good_match(self, name1, name2):
