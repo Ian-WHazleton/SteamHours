@@ -548,7 +548,7 @@ class MainWindow(QMainWindow):
         # Open custom dialog to get the Steam App ID and data source choice
         dialog = GameLookupDialog(self)
 
-        if dialog.exec() == QDialog.accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             app_id, use_api = dialog.get_values()
             
             if app_id.strip():
@@ -562,7 +562,7 @@ class MainWindow(QMainWindow):
                         self.lookup_game_from_spreadsheet(app_id)
                         
                 except ValueError:
-                    self.show_styled_message_box("Invalid Input", "Please enter a valid numeric App ID.", QMessageBox.Warning)
+                    self.show_styled_message_box("Invalid Input", "Please enter a valid numeric App ID.", QMessageBox.Icon.Warning)
 
     def lookup_game_from_api(self, app_id):
         """Look up game hours from Steam API."""
@@ -576,7 +576,7 @@ class MainWindow(QMainWindow):
             STEAM_ID = self.current_steam_id  # Use the current user's Steam ID
             
             if not API_KEY:
-                self.show_styled_message_box("API Error", "Steam API key not found. Please check your .env file.", QMessageBox.Warning)
+                self.show_styled_message_box("API Error", "Steam API key not found. Please check your .env file.", QMessageBox.Icon.Warning)
                 return
             
             # Get owned games from Steam API
@@ -597,12 +597,12 @@ class MainWindow(QMainWindow):
                 # Game not found
                 self.show_game_not_found_popup(app_id)
             else:
-                self.show_styled_message_box("API Error", f"Failed to fetch data from Steam API. Status code: {response.status_code}", QMessageBox.Warning)
+                self.show_styled_message_box("API Error", f"Failed to fetch data from Steam API. Status code: {response.status_code}", QMessageBox.Icon.Warning)
                 
         except ImportError:
-            self.show_styled_message_box("Missing Dependency", "The 'requests' library is required for API calls.", QMessageBox.Warning)
+            self.show_styled_message_box("Missing Dependency", "The 'requests' library is required for API calls.", QMessageBox.Icon.Warning)
         except Exception as e:
-            self.show_styled_message_box("Error", f"An error occurred while fetching from API: {str(e)}", QMessageBox.Critical)
+            self.show_styled_message_box("Error", f"An error occurred while fetching from API: {str(e)}", QMessageBox.Icon.Critical)
 
     def lookup_game_from_spreadsheet(self, app_id):
         """Look up game hours from spreadsheet."""
@@ -631,12 +631,12 @@ class MainWindow(QMainWindow):
                 if not game_found:
                     self.show_game_not_found_popup(app_id)
             else:
-                self.show_styled_message_box("Error", "Steam Games Playtime sheet not found in spreadsheet.", QMessageBox.Warning)
+                self.show_styled_message_box("Error", "Steam Games Playtime sheet not found in spreadsheet.", QMessageBox.Icon.Warning)
                 
         except FileNotFoundError:
-            self.show_styled_message_box("File Error", "Spreadsheet file not found.", QMessageBox.Warning)
+            self.show_styled_message_box("File Error", "Spreadsheet file not found.", QMessageBox.Icon.Warning)
         except Exception as e:
-            self.show_styled_message_box("Error", f"An error occurred: {str(e)}", QMessageBox.Critical)
+            self.show_styled_message_box("Error", f"An error occurred: {str(e)}", QMessageBox.Icon.Critical)
 
     def import_costs_from_csv(self):
         """Import game costs from a CSV file."""
@@ -765,7 +765,7 @@ class MainWindow(QMainWindow):
         
         dialog.setLayout(layout)
         
-        if dialog.exec() != QDialog.Accepted:
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
             
         game_name = game_input.text().strip()
@@ -817,19 +817,19 @@ class MainWindow(QMainWindow):
                         message += f"Purchase Date: {game['date']}\n"
                         message += f"Purchase Method: {game['method']}"
                         
-                        self.show_styled_message_box("Game Stats", message, QMessageBox.Information)
+                        self.show_styled_message_box("Game Stats", message, QMessageBox.Icon.Information)
                     else:
                         self.show_multiple_game_results(found_games, game_name)
                 else:
-                    self.show_styled_message_box("No Results", f"No games found matching '{game_name}'.", QMessageBox.Information)
+                    self.show_styled_message_box("No Results", f"No games found matching '{game_name}'.", QMessageBox.Icon.Information)
                     
             else:
-                self.show_styled_message_box("Error", "Steam Games Playtime sheet not found in spreadsheet.", QMessageBox.Warning)
+                self.show_styled_message_box("Error", "Steam Games Playtime sheet not found in spreadsheet.", QMessageBox.Icon.Warning)
                 
         except FileNotFoundError:
-            self.show_styled_message_box("File Error", "Spreadsheet file not found.", QMessageBox.Warning)
+            self.show_styled_message_box("File Error", "Spreadsheet file not found.", QMessageBox.Icon.Warning)
         except Exception as e:
-            self.show_styled_message_box("Error", f"An error occurred while searching: {str(e)}", QMessageBox.Critical)
+            self.show_styled_message_box("Error", f"An error occurred while searching: {str(e)}", QMessageBox.Icon.Critical)
 
     def show_multiple_game_results(self, found_games, search_term):
         """Show multiple game results in a selection dialog."""

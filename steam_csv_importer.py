@@ -143,8 +143,12 @@ class GameIdInputDialog(QDialog):
                 background-color: white;
                 color: black;
                 border: 1px solid #ccc;
-                padding: 5px;
+                padding: 8px;
                 margin: 5px 0;
+                font-family: monospace;
+            }
+            QLineEdit:focus {
+                border: 2px solid #4CAF50;
             }
             QPushButton {
                 background-color: #4CAF50;
@@ -167,12 +171,17 @@ class GameIdInputDialog(QDialog):
         layout.addWidget(self.game_label)
         
         # Add instruction
-        self.instruction_label = QLabel('Please enter the Steam App ID for this game:')
+        self.instruction_label = QLabel('Please enter the Steam App ID(s) for this game:')
         layout.addWidget(self.instruction_label)
+        
+        # Add detailed instruction for multiple IDs
+        self.multi_instruction_label = QLabel('For multiple games/DLCs, separate App IDs with commas (e.g., 271590, 271591, 271592)')
+        self.multi_instruction_label.setStyleSheet("font-size: 10px; color: #cccccc; margin-bottom: 5px;")
+        layout.addWidget(self.multi_instruction_label)
         
         # Add input field
         self.input_field = QLineEdit()
-        self.input_field.setPlaceholderText('e.g., 271590')
+        self.input_field.setPlaceholderText('e.g., 271590 or 271590, 271591, 271592')
         layout.addWidget(self.input_field)
         
         # Add buttons
@@ -199,7 +208,28 @@ class GameIdInputDialog(QDialog):
         self.done(2)  # Custom return code for skip
     
     def get_app_id(self):
-        return self.input_field.text().strip()
+        """Get the first App ID (for backward compatibility)."""
+        app_ids = self.get_app_ids()
+        return app_ids[0] if app_ids else ""
+    
+    def get_app_ids(self):
+        """Get all App IDs as a list."""
+        text = self.input_field.text().strip()
+        if not text:
+            return []
+        
+        # Split by commas and clean up each ID
+        app_ids = []
+        for app_id in text.split(','):
+            app_id = app_id.strip()
+            if app_id and app_id.isdigit():
+                app_ids.append(app_id)
+        
+        return app_ids
+    
+    def has_multiple_app_ids(self):
+        """Check if multiple App IDs were entered."""
+        return len(self.get_app_ids()) > 1
 
 
 class BundleTypeDialog(QDialog):
@@ -370,7 +400,7 @@ class SteamCSVImporter:
             # Get or create the Steam Games Playtime sheet
             if 'Steam Games Playtime' not in workbook.sheetnames:
                 if self.parent:
-                    self.parent.show_styled_message_box("Error", "Steam Games Playtime sheet not found in spreadsheet.", QMessageBox.Warning)
+                    self.parent.show_styled_message_box("Error", "Steam Games Playtime sheet not found in spreadsheet.", QMessageBox.Icon.Warning)
                 return False, "Steam Games Playtime sheet not found"
             
             sheet = workbook['Steam Games Playtime']
@@ -480,7 +510,7 @@ class SteamCSVImporter:
                                 self.parent.show_styled_message_box(
                                     "Warning",
                                     "Could not fetch Steam prices. Falling back to equal cost split.",
-                                    QMessageBox.Warning
+                                    QMessageBox.Icon.Warning
                                 )
                             cost_per_game = total_cost / len(bundle_games)
                             equal_split_costs = {game: cost_per_game for game in bundle_games}
@@ -568,12 +598,12 @@ class SteamCSVImporter:
                                     continue
                                 else:
                                     if self.parent:
-                                        self.parent.show_styled_message_box("Error", f"Base game not found in spreadsheet for bundle.", QMessageBox.Warning)
+                                        self.parent.show_styled_message_box("Error", f"Base game not found in spreadsheet for bundle.", QMessageBox.Icon.Warning)
                                     games_skipped += len(bundle_games)
                                     continue
                             else:
                                 if self.parent:
-                                    self.parent.show_styled_message_box("Error", f"Base game App ID not found for bundle.", QMessageBox.Warning)
+                                    self.parent.show_styled_message_box("Error", f"Base game App ID not found for bundle.", QMessageBox.Icon.Warning)
                                 games_skipped += len(bundle_games)
                                 continue
                         else:
@@ -701,7 +731,7 @@ class SteamCSVImporter:
                                 else:
                                     # Could not find base game
                                     if self.parent:
-                                        self.parent.show_styled_message_box("Error", f"Base game not found for DLC '{game_name}'. Skipping.", QMessageBox.Warning)
+                                        self.parent.show_styled_message_box("Error", f"Base game not found for DLC '{game_name}'. Skipping.", QMessageBox.Icon.Warning)
                                     games_skipped += 1
                                     continue
                             else:
@@ -884,18 +914,37 @@ class SteamCSVImporter:
             dialog = GameIdInputDialog(game_name, self.parent)
             id_result = dialog.exec()
             
-            if id_result == QDialog.Accepted:
-                user_app_id = dialog.get_app_id()
-                if user_app_id and user_app_id.isdigit():
-                    app_id = user_app_id
+            if id_result == QDialog.DialogCode.Accepted:
+                app_ids = dialog.get_app_ids()
+                if app_ids:
+                    if dialog.has_multiple_app_ids():
+                        # Handle multiple App IDs - split cost evenly and process each
+                        cost_per_game = cost / len(app_ids)
+                        results = []
+                        for app_id in app_ids:
+                            result = self._process_single_app_id(
+                                game_name, app_id, cost_per_game, date, method, 
+                                existing_games, sheet
+                            )
+                            results.append(result)
+                        # Return the result of the first game (for counting purposes)
+                        return results[0] if results else 'skipped'
+                    else:
+                        app_id = app_ids[0]
                 else:
                     if self.parent:
-                        self.parent.show_styled_message_box("Invalid App ID", f"Invalid App ID entered for {game_name}. Skipping.", QMessageBox.Warning)
+                        self.parent.show_styled_message_box("Invalid App ID", f"Invalid App ID entered for {game_name}. Skipping.", QMessageBox.Icon.Warning)
                     return 'skipped'
             elif id_result == 2:  # Skip button
                 return 'skipped'
             else:  # Cancel button
                 return 'cancelled'
+        
+        # Process single App ID
+        return self._process_single_app_id(game_name, app_id, cost, date, method, existing_games, sheet)
+    
+    def _process_single_app_id(self, game_name, app_id, cost, date, method, existing_games, sheet):
+        """Process a single App ID entry."""
         
         # Replace cost and date for the game
         if app_id in existing_games:
@@ -949,9 +998,18 @@ class SteamCSVImporter:
                     id_result = dialog.exec()
                     
                     if id_result == QDialog.DialogCode.Accepted:
-                        user_app_id = dialog.get_app_id()
-                        if user_app_id and user_app_id.isdigit():
-                            app_id = user_app_id
+                        app_ids_list = dialog.get_app_ids()
+                        if app_ids_list:
+                            # For weighted costs, use the first App ID
+                            app_id = app_ids_list[0]
+                            if dialog.has_multiple_app_ids():
+                                # Warn user that only first App ID will be used for weighted calculation
+                                if self.parent:
+                                    self.parent.show_styled_message_box(
+                                        "Multiple App IDs", 
+                                        f"Multiple App IDs entered for '{game_name}'. Using first App ID ({app_id}) for weighted cost calculation.",
+                                        QMessageBox.Icon.Information
+                                    )
                         else:
                             print(f"Invalid App ID entered for {game_name}. Using fallback.")
                             return None, None, None, None
@@ -1110,15 +1168,16 @@ class SteamCSVImporter:
             best_match = potential_matches[0]
             
             # If the best match is significantly better than others, auto-select it
-            # Otherwise, fall back to the old _is_good_match for user confirmation
+            # Otherwise, use similarity score for user confirmation
             if len(potential_matches) == 1 or best_match['score'] > potential_matches[1]['score'] + 100:
                 # Clear winner - use it directly
                 app_id = best_match['app_id']
                 self.app_id_cache[game_name] = app_id  # Cache the result
                 return app_id
             else:
-                # Multiple similar matches - use the old method for user confirmation
-                if self._is_good_match(clean_name, best_match['name'].lower().strip()):
+                # Multiple similar matches - use similarity score for user confirmation
+                similarity_score = calculate_similarity_score(clean_name, best_match['name'].lower().strip())
+                if similarity_score >= 200:  # Good enough match threshold
                     app_id = best_match['app_id']
                     self.app_id_cache[game_name] = app_id  # Cache the result
                     return app_id

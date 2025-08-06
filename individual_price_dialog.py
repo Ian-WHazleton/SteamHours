@@ -175,7 +175,7 @@ class IndividualPriceDialog(QDialog):
                     msg_box = QMessageBox(self)
                     msg_box.setWindowTitle("Invalid Price")
                     msg_box.setText(f"Price for '{game_name}' cannot be negative.")
-                    msg_box.setIcon(QMessageBox.Warning)
+                    msg_box.setIcon(QMessageBox.Icon.Warning)
                     msg_box.setStyleSheet("""
                         QMessageBox {
                             background-color: #2b2b2b;
@@ -196,7 +196,7 @@ class IndividualPriceDialog(QDialog):
                             background-color: #45a049;
                         }
                     """)
-                    msg_box.exec_()
+                    msg_box.exec()
                     return
                 individual_prices[game_name] = price
                 total_entered += price
@@ -204,7 +204,7 @@ class IndividualPriceDialog(QDialog):
                 msg_box = QMessageBox(self)
                 msg_box.setWindowTitle("Invalid Price")
                 msg_box.setText(f"Invalid price entered for '{game_name}'. Please enter a valid number.")
-                msg_box.setIcon(QMessageBox.Warning)
+                msg_box.setIcon(QMessageBox.Icon.Warning)
                 msg_box.setStyleSheet("""
                     QMessageBox {
                         background-color: #2b2b2b;
@@ -225,7 +225,7 @@ class IndividualPriceDialog(QDialog):
                         background-color: #45a049;
                     }
                 """)
-                msg_box.exec_()
+                msg_box.exec()
                 return
         
         # Check if total matches (within reasonable tolerance)
@@ -261,7 +261,7 @@ class IndividualPriceDialog(QDialog):
                 }
             """)
             
-            reply = msg_box.exec_()
+            reply = msg_box.exec()
             if reply != QMessageBox.StandardButton.Yes:
                 return
         
