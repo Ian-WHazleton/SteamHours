@@ -1,6 +1,10 @@
 import random
+from PyQt6.QtWidgets import QLineEdit
 import csv
 import re
+import json
+import os
+from datetime import datetime
 from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QHBoxLayout, QVBoxLayout, QWidget, QSpacerItem, QSizePolicy, QPushButton, QGridLayout, QMessageBox, QInputDialog, QCheckBox, QDialog, QFileDialog, QTextEdit
 from custom_textbox import CustomTextBox
 from PyQt6.QtGui import QFont
@@ -98,7 +102,14 @@ class GameLookupDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Steam Data Tracker")
+        
+        # Add user attribute for Steam ID (load early)
+        self.current_steam_id = self.load_user_preferences()  # Load from config file
+        
+        # Ensure user directory exists on startup
+        self.ensure_user_directory()
+        
+        self.setWindowTitle(f"Steam Data Tracker - User: {self.current_steam_id}")
 
         # Set the main window background color
         self.setStyleSheet("background-color: #202020;")  # Dark gray background
@@ -144,38 +155,36 @@ class MainWindow(QMainWindow):
             9: "Button 9",
             10: "Button 10",
             11: "Button 11",
-            12: "Button 12"
+            12: "Change User"
         }
 
         # Create a grid layout for buttons
         button_grid = QGridLayout()
 
         # Add buttons to the grid layout using the names from the dictionary
+
         for i in range(1, 13):  # 12 buttons
             button = QPushButton(self.button_names[i])
-            
-            # Set fixed width and height for the buttons
             button.setMinimumWidth(400)
             button.setMaximumWidth(400)
             button.setMinimumHeight(100)
             button.setMaximumHeight(100)
-
-            # Set the button background color to light gray
-            button.setStyleSheet("background-color: #D3D3D3;")  # Light gray background for buttons
+            button.setStyleSheet("background-color: #D3D3D3;")
 
             # Connect specific actions to specific buttons
-            if i == 1:  # "Update Steam Info" button
+            if i == 1:
                 button.clicked.connect(self.update_steam_data)
-            elif i == 2:  # "Random Game" button
+            elif i == 2:
                 button.clicked.connect(self.select_random_game)
-            elif i == 3:  # "Game Hours Lookup" button
+            elif i == 3:
                 button.clicked.connect(self.lookup_game_hours)
-            elif i == 4:  # "Import Costs from CSV" button
+            elif i == 4:
                 button.clicked.connect(self.import_costs_from_csv)
-            elif i == 5:  # "Search Game Stats" button
+            elif i == 5:
                 button.clicked.connect(self.search_game_stats)
+            elif i == 12:
+                button.clicked.connect(self.change_user)
 
-            # Add the button to the grid (3 columns layout)
             row = (i - 1) // 3
             col = (i - 1) % 3
             button_grid.addWidget(button, row, col)
@@ -188,13 +197,16 @@ class MainWindow(QMainWindow):
 
         # Check for spreadsheet existence on startup
         import os
-        spreadsheet_path = 'ExcelFiles\\steam_games_playtime.xlsx'
+        spreadsheet_path = self.get_user_spreadsheet_path()
 
         if not os.path.exists(spreadsheet_path):
+            # Ensure user directory exists
+            self.ensure_user_directory()
+            
             # Custom popup: Create empty sheet or close
             msg_box = QMessageBox(self)
-            msg_box.setWindowTitle("Missing Spreadsheet")
-            msg_box.setText(f"The required spreadsheet was not found at:\n{spreadsheet_path}\n\nWould you like to create an empty sheet or close and move the file there?")
+            msg_box.setWindowTitle("Missing User Spreadsheet")
+            msg_box.setText(f"The spreadsheet for user {self.current_steam_id} was not found at:\n{spreadsheet_path}\n\nWould you like to create an empty sheet for this user?")
             msg_box.setIcon(QMessageBox.Icon.Critical)
             create_button = msg_box.addButton("Create Empty Sheet", QMessageBox.ButtonRole.AcceptRole)
             close_button = msg_box.addButton("Close App", QMessageBox.ButtonRole.RejectRole)
@@ -231,10 +243,133 @@ class MainWindow(QMainWindow):
         # Load initial data from spreadsheet on startup
         self.load_initial_data()
 
+    def change_user(self):
+        """Prompt for a new Steam ID and update the user."""
+        # Create a styled input dialog
+        dialog = QInputDialog(self)
+        dialog.setWindowTitle("Change Steam User")
+        dialog.setLabelText(f"Current Steam ID: {self.current_steam_id}\n\nEnter new Steam ID:")
+        dialog.setTextValue(self.current_steam_id)
+        dialog.setStyleSheet("""
+            QInputDialog {
+                background-color: #2b2b2b;
+                color: white;
+            }
+            QLabel {
+                color: white;
+            }
+            QLineEdit {
+                background-color: #404040;
+                color: white;
+                border: 1px solid #666;
+                padding: 5px;
+            }
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                margin: 5px 2px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            steam_id = dialog.textValue().strip()
+            if steam_id and steam_id != self.current_steam_id:
+                # Basic validation - Steam IDs are 17-digit numbers
+                if steam_id.isdigit() and len(steam_id) == 17:
+                    old_id = self.current_steam_id
+                    self.current_steam_id = steam_id
+                    self.save_user_preferences()  # Save to config file
+                    
+                    # Ensure user directory exists
+                    self.ensure_user_directory()
+                    
+                    # Reload data for new user
+                    self.load_initial_data()
+                    
+                    # Update window title to show current user
+                    self.setWindowTitle(f"Steam Data Tracker - User: {self.current_steam_id}")
+                    
+                    self.show_success_notification("User Changed", 
+                        f"Steam ID changed from:\n{old_id}\nto:\n{self.current_steam_id}\n\nData loaded for new user.")
+                else:
+                    self.show_styled_message_box("Invalid Steam ID", 
+                        "Steam ID must be a 17-digit number.\n\nExample: 76561198074846013", 
+                        QMessageBox.Icon.Warning)
+            elif not steam_id:
+                self.show_styled_message_box("Change Cancelled", 
+                    "No Steam ID entered.", QMessageBox.Icon.Information)
+            else:
+                self.show_styled_message_box("No Change", 
+                    "Steam ID unchanged.", QMessageBox.Icon.Information)
+
+    def load_user_preferences(self):
+        """Load user preferences from config file."""
+        config_path = 'config/user_preferences.json'
+        default_steam_id = '76561198074846013'
+        
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    return config.get('steam_id', default_steam_id)
+        except Exception as e:
+            print(f"Error loading user preferences: {e}")
+        
+        return default_steam_id
+    
+    def save_user_preferences(self):
+        """Save user preferences to config file."""
+        config_path = 'config/user_preferences.json'
+        
+        try:
+            # Create config directory if it doesn't exist
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            
+            config = {
+                'steam_id': self.current_steam_id,
+                'last_updated': datetime.now().isoformat()  # Proper timestamp
+            }
+            
+            with open(config_path, 'w') as f:
+                json.dump(config, f, indent=2)
+                
+        except Exception as e:
+            print(f"Error saving user preferences: {e}")
+            self.show_styled_message_box("Save Error", 
+                f"Could not save user preferences: {str(e)}", 
+                QMessageBox.Icon.Warning)
+
+    def get_user_spreadsheet_path(self):
+        """Get the spreadsheet path for the current user."""
+        return f'ExcelFiles/{self.current_steam_id}/steam_games_playtime.xlsx'
+    
+    def ensure_user_directory(self):
+        """Ensure the user's directory exists."""
+        user_dir = f'ExcelFiles/{self.current_steam_id}'
+        try:
+            os.makedirs(user_dir, exist_ok=True)
+            print(f"User directory ensured: {user_dir}")
+            return user_dir
+        except Exception as e:
+            print(f"Error creating user directory {user_dir}: {e}")
+            self.show_styled_message_box("Directory Error", 
+                f"Could not create user directory: {str(e)}", 
+                QMessageBox.Icon.Warning)
+            return None
+
     def load_initial_data(self):
         """Load initial data from the spreadsheet on startup."""
         try:
-            total_games, total_hours, average_playtime = get_data_from_spreadsheet('ExcelFiles/steam_games_playtime.xlsx')
+            # Ensure user directory exists before trying to access spreadsheet
+            self.ensure_user_directory()
+            spreadsheet_path = self.get_user_spreadsheet_path()
+            total_games, total_hours, average_playtime = get_data_from_spreadsheet(spreadsheet_path)
             
             # Update the labels with the loaded data
             self.total_games_label.setText(str(total_games))
@@ -303,10 +438,15 @@ class MainWindow(QMainWindow):
                 self.show_styled_message_box("Steam API Key Error", "Steam API key not found. Please check your .env file.", QMessageBox.Icon.Critical)
                 return
 
-            update_spreadsheet()
-
+            # Ensure user directory exists before accessing spreadsheet
+            self.ensure_user_directory()
+            spreadsheet_path = self.get_user_spreadsheet_path()
+            
+            # Pass user-specific Steam ID and spreadsheet path
+            update_spreadsheet(steam_id=self.current_steam_id, spreadsheet_path=spreadsheet_path)
+            
             # Get the updated values using SteamData
-            total_games, total_hours, average_playtime = get_data_from_spreadsheet('ExcelFiles/steam_games_playtime.xlsx')
+            total_games, total_hours, average_playtime = get_data_from_spreadsheet(spreadsheet_path)
 
             # Update the labels with the new data
             self.total_games_label.setText(str(total_games))
@@ -326,7 +466,6 @@ class MainWindow(QMainWindow):
         finally:
             # Restore button state
             self.update_button.setText("Update Steam Info")
-            spreadsheet_path = 'ExcelFiles/steam_games_playtime.xlsx'
 
             # Stop the throbber
             self.stop_throbber()
@@ -352,21 +491,28 @@ class MainWindow(QMainWindow):
 
     def select_random_game(self):
         """Select a random game from the spreadsheet and display its name."""
-        spreadsheet_path = 'ExcelFiles/steam_games_playtime.xlsx'
-        workbook = openpyxl.load_workbook(spreadsheet_path)
+        try:
+            # Ensure user directory exists before accessing spreadsheet
+            self.ensure_user_directory()
+            spreadsheet_path = self.get_user_spreadsheet_path()
+            workbook = openpyxl.load_workbook(spreadsheet_path)
 
-        if 'Steam Games Playtime' in workbook.sheetnames:
-            sheet = workbook['Steam Games Playtime']
-            games = []
-            for row in sheet.iter_rows(min_row=2, values_only=True):
-                app_id, game_name = row[1], row[0]  # Note: swapped order - Game Name is column A, App ID is column B
-                if game_name:
-                    games.append(game_name)
+            if 'Steam Games Playtime' in workbook.sheetnames:
+                sheet = workbook['Steam Games Playtime']
+                games = []
+                for row in sheet.iter_rows(min_row=2, values_only=True):
+                    app_id, game_name = row[1], row[0]  # Note: swapped order - Game Name is column A, App ID is column B
+                    if game_name:
+                        games.append(game_name)
 
-            if games:
-                random_game = random.choice(games)
-                # Display the selected game name in a pop-up
-                self.show_random_game_popup(random_game)
+                if games:
+                    random_game = random.choice(games)
+                    # Display the selected game name in a pop-up
+                    self.show_random_game_popup(random_game)
+        except FileNotFoundError:
+            self.show_styled_message_box("File Error", "Spreadsheet file not found.", QMessageBox.Icon.Warning)
+        except Exception as e:
+            self.show_styled_message_box("Error", f"An error occurred: {str(e)}", QMessageBox.Icon.Critical)
 
     def show_random_game_popup(self, game_name):
         """Show a pop-up window with the selected random game."""
@@ -427,7 +573,7 @@ class MainWindow(QMainWindow):
             
             load_dotenv()
             API_KEY = os.getenv('STEAM_API_KEY')
-            STEAM_ID = '76561198074846013'  # You might want to make this configurable
+            STEAM_ID = self.current_steam_id  # Use the current user's Steam ID
             
             if not API_KEY:
                 self.show_styled_message_box("API Error", "Steam API key not found. Please check your .env file.", QMessageBox.Warning)
@@ -461,8 +607,10 @@ class MainWindow(QMainWindow):
     def lookup_game_from_spreadsheet(self, app_id):
         """Look up game hours from spreadsheet."""
         try:
+            # Ensure user directory exists before accessing spreadsheet
+            self.ensure_user_directory()
             # Search for the game in the spreadsheet
-            spreadsheet_path = 'ExcelFiles/steam_games_playtime.xlsx'
+            spreadsheet_path = self.get_user_spreadsheet_path()
             workbook = openpyxl.load_workbook(spreadsheet_path)
             
             if 'Steam Games Playtime' in workbook.sheetnames:
@@ -513,7 +661,44 @@ class MainWindow(QMainWindow):
 
         # Create CSV importer and run import
         importer = SteamCSVImporter(parent_window=self)
+        
+        # Ensure user directory exists before setting spreadsheet path
+        self.ensure_user_directory()
+        # Set the user-specific spreadsheet path
+        importer.spreadsheet_path = self.get_user_spreadsheet_path()
+        
         try:
+            # Patch: Style QInputDialog drop-down text to white
+            from PyQt6.QtWidgets import QInputDialog
+            QInputDialog.setStyleSheet(QInputDialog(), """
+                QInputDialog {
+                    background-color: #2b2b2b;
+                    color: white;
+                }
+                QLabel {
+                    color: white;
+                }
+                QComboBox {
+                    background-color: #404040;
+                    color: white;
+                    border: 1px solid #666;
+                }
+                QComboBox QAbstractItemView {
+                    background-color: #404040;
+                    color: white;
+                }
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    margin: 2px;
+                    min-width: 80px;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+            """)
             success, result = importer.import_from_file(csv_file)
         except Exception as e:
             self.show_styled_message_box("Import Error", f"Exception during import: {str(e)}", QMessageBox.Icon.Critical)
@@ -588,7 +773,9 @@ class MainWindow(QMainWindow):
             return
         
         try:
-            spreadsheet_path = r'D:\SteamHours\ExcelFiles\steam_games_playtime.xlsx'
+            # Ensure user directory exists before accessing spreadsheet
+            self.ensure_user_directory()
+            spreadsheet_path = self.get_user_spreadsheet_path()
             workbook = openpyxl.load_workbook(spreadsheet_path)
             
             if 'Steam Games Playtime' in workbook.sheetnames:
@@ -806,7 +993,7 @@ class MainWindow(QMainWindow):
         msg_box.exec()
 
     def show_game_not_found_popup(self, app_id):
-        """Show a pop-up when the game is not found."""
+        """Show a styled dark pop-up when the game is not found."""
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Game Not Found")
         msg_box.setText(f"No game found with App ID: {app_id}\n\nThis could mean:\n- You don't own this game\n- The game wasn't included in your last data update\n- The App ID is incorrect")

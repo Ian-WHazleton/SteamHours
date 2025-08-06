@@ -1,7 +1,10 @@
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, QTextEdit, QProgressDialog, QApplication, QInputDialog
+from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 import csv
 import re
 import openpyxl
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, QTextEdit, QProgressDialog, QApplication
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, QTextEdit, QProgressDialog, QApplication, QInputDialog
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from SteamAPI_Caller import get_bundle_prices
@@ -265,16 +268,18 @@ class BundleTypeDialog(QDialog):
         button_layout = QHBoxLayout()
         self.multi_button = QPushButton('Multi Purchase')
         self.weighted_button = QPushButton('Weighted Purchase')
+        self.dlc_bundle_button = QPushButton('Base Game + DLC (Combine)')
         self.cancel_button = QPushButton('Cancel')
-        
+
         self.multi_button.clicked.connect(lambda: self.done(1))
         self.weighted_button.clicked.connect(lambda: self.done(3))
+        self.dlc_bundle_button.clicked.connect(lambda: self.done(5))
         self.cancel_button.clicked.connect(self.reject)
-        
+
         button_layout.addWidget(self.multi_button)
         button_layout.addWidget(self.weighted_button)
+        button_layout.addWidget(self.dlc_bundle_button)
         button_layout.addWidget(self.cancel_button)
-        
         layout.addLayout(button_layout)
         self.setLayout(layout)
 
@@ -413,27 +418,22 @@ class SteamCSVImporter:
                     )
                 
                 if len(purchase['bundle_games']) > 1:
-                    # This is a potential bundle - ask user how to handle it
+                    # Bundle logic
                     bundle_games = purchase['bundle_games']
                     total_cost = purchase['cost']
-                    
-                dialog = BundleTypeDialog(bundle_games, total_cost, self.parent)
-                result = dialog.exec()
-
-                if result == 1:  # Multi Purchase - get individual prices from user
+                    dialog = BundleTypeDialog(bundle_games, total_cost, self.parent)
+                    result = dialog.exec()
+                    if result == 1:
+                        # ...existing code for multi purchase...
                         individual_price_dialog = IndividualPriceDialog(bundle_games, total_cost, self.parent)
                         price_result = individual_price_dialog.exec()
-                        
-                        if price_result == QDialog.Accepted:
+                        if price_result == QDialog.DialogCode.Accepted:
                             individual_prices = individual_price_dialog.get_individual_prices()
-                            
-                            # Show price breakdown confirmation
                             breakdown_dialog = PriceBreakdownDialog(
                                 individual_prices, total_cost, "Multi Purchase", self.parent
                             )
                             breakdown_result = breakdown_dialog.exec()
-                            
-                            if breakdown_result == QDialog.Accepted:
+                            if breakdown_result == QDialog.DialogCode.Accepted:
                                 for game_name in bundle_games:
                                     individual_cost = individual_prices.get(game_name, 0.0)
                                     result = self._process_single_game(
@@ -447,26 +447,21 @@ class SteamCSVImporter:
                                         print(f"Game skipped: {game_name} (multi purchase)")
                                         games_skipped += 1
                             else:
-                                # User cancelled price breakdown, skip this bundle
                                 continue
-                        else:
-                            # User cancelled individual price entry, skip this bundle
-                            continue
-                elif result == 3:  # Weighted Purchase - distribute based on Steam prices
+                        # No further action needed; continue to next purchase
+                    elif result == 3:
+                        # ...existing code for weighted purchase...
                         progress_dialog.set_status("Fetching Steam prices for weighted distribution...")
                         calc_result = self._calculate_weighted_costs(bundle_games, total_cost, sheet)
                         if calc_result and len(calc_result) == 4:
                             weighted_costs, game_app_ids, steam_prices, total_steam_value = calc_result
-                            # Show price breakdown confirmation with enhanced information
                             breakdown_dialog = PriceBreakdownDialog(
-                                weighted_costs, total_cost, "Weighted Purchase", self.parent, 
+                                weighted_costs, total_cost, "Weighted Purchase", self.parent,
                                 steam_prices=steam_prices, total_steam_value=total_steam_value, game_app_ids=game_app_ids
                             )
                             breakdown_result = breakdown_dialog.exec()
-                            
-                            if breakdown_result == QDialog.Accepted:
+                            if breakdown_result == QDialog.DialogCode.Accepted:
                                 for game_name, weighted_cost in weighted_costs.items():
-                                    # Use cached App ID to avoid double matching dialogs
                                     cached_app_id = game_app_ids.get(game_name)
                                     result = self._process_single_game_with_app_id(
                                         game_name, weighted_cost, purchase['date'], "Steam", cached_app_id,
@@ -479,28 +474,22 @@ class SteamCSVImporter:
                                         print(f"Game skipped: {game_name} (weighted purchase)")
                                         games_skipped += 1
                             else:
-                                # User cancelled price breakdown, skip this bundle
                                 continue
                         else:
-                            # Fallback to equal split if Steam pricing fails
                             if self.parent:
                                 self.parent.show_styled_message_box(
-                                    "Warning", 
+                                    "Warning",
                                     "Could not fetch Steam prices. Falling back to equal cost split.",
                                     QMessageBox.Warning
                                 )
                             cost_per_game = total_cost / len(bundle_games)
                             equal_split_costs = {game: cost_per_game for game in bundle_games}
-                            
-                            # Show equal split breakdown
                             breakdown_dialog = PriceBreakdownDialog(
                                 equal_split_costs, total_cost, "Equal Split (Fallback)", self.parent
                             )
                             breakdown_result = breakdown_dialog.exec()
-                            
-                            if breakdown_result == QDialog.Accepted:
+                            if breakdown_result == QDialog.DialogCode.Accepted:
                                 for game_name in bundle_games:
-                                    # Use regular processing since we don't have App IDs from Steam lookup
                                     result = self._process_single_game(
                                         game_name, cost_per_game, purchase['date'], "Steam",
                                         existing_games, sheet, games_processed, games_added, games_skipped
@@ -512,24 +501,237 @@ class SteamCSVImporter:
                                         print(f"Game skipped: {game_name} (equal split fallback)")
                                         games_skipped += 1
                             else:
-                                # User cancelled, skip this bundle
                                 continue
-                else:  # Cancel at bundle dialog
-                    games_skipped += len(bundle_games)
-                    continue
-                # Single game purchase
-                game_name = purchase['bundle_games'][0]
-                result = self._process_single_game(
-                    game_name, purchase['cost'], purchase['date'], "Steam",
-                    existing_games, sheet, games_processed, games_added, games_skipped
-                )
-                games_processed += 1
-                if result == 'added':
-                    games_added += 1
-                elif result == 'skipped':
-                    games_skipped += 1
-                elif result == 'cancelled':
-                    games_skipped += 1
+                    elif result == 5:
+                        # New: Treat bundle as base game + DLC, combine price, set to one App ID
+                        # Prompt user to select the base game
+                        from PyQt6.QtWidgets import QInputDialog
+                        # Styled QInputDialog for base game selection
+                        base_game_dialog = QInputDialog(self.parent)
+                        base_game_dialog.setWindowTitle("Select Base Game")
+                        base_game_dialog.setLabelText("Select the base game for this bundle:")
+                        base_game_dialog.setComboBoxItems(bundle_games)
+                        base_game_dialog.setStyleSheet("""
+                            QInputDialog {
+                                background-color: #2b2b2b;
+                                color: white;
+                            }
+                            QLabel {
+                                color: white;
+                            }
+                            QComboBox {
+                                background-color: #404040;
+                                color: white;
+                                border: 1px solid #666;
+                            }
+                            QComboBox QAbstractItemView {
+                                background-color: #404040;
+                                color: white;
+                            }
+                            QPushButton {
+                                background-color: #4CAF50;
+                                color: white;
+                                border: none;
+                                padding: 8px 16px;
+                                margin: 5px 2px;
+                                min-width: 80px;
+                            }
+                            QPushButton:hover {
+                                background-color: #45a049;
+                            }
+                        """)
+                        ok = base_game_dialog.exec()
+                        base_game = base_game_dialog.textValue()
+                        if ok == QDialog.DialogCode.Accepted:
+                            # Find App ID for base game
+                            base_app_id = self._find_game_in_library(base_game, sheet)
+                            if base_app_id:
+                                row_num = existing_games.get(base_app_id)
+                                if row_num:
+                                    # Add total bundle cost to base game's cost
+                                    prev_cost = sheet.cell(row=row_num, column=4).value or 0
+                                    sheet.cell(row=row_num, column=4, value=prev_cost + total_cost)
+                                    # Optionally, add DLC rows for other games
+                                    for dlc_game in bundle_games:
+                                        if dlc_game != base_game:
+                                            new_row = sheet.max_row + 1
+                                            sheet.cell(row=new_row, column=1, value=dlc_game)
+                                            sheet.cell(row=new_row, column=2, value="")
+                                            sheet.cell(row=new_row, column=3, value=0)
+                                            sheet.cell(row=new_row, column=4, value="")
+                                            sheet.cell(row=new_row, column=5, value=purchase['date'])
+                                            sheet.cell(row=new_row, column=6, value="Steam")
+                                            sheet.cell(row=new_row, column=7, value="DLC")
+                                            sheet.cell(row=new_row, column=8, value=base_app_id)
+                                    games_processed += len(bundle_games)
+                                    games_added += len(bundle_games)
+                                    continue
+                                else:
+                                    if self.parent:
+                                        self.parent.show_styled_message_box("Error", f"Base game not found in spreadsheet for bundle.", QMessageBox.Warning)
+                                    games_skipped += len(bundle_games)
+                                    continue
+                            else:
+                                if self.parent:
+                                    self.parent.show_styled_message_box("Error", f"Base game App ID not found for bundle.", QMessageBox.Warning)
+                                games_skipped += len(bundle_games)
+                                continue
+                        else:
+                            # User cancelled base game selection
+                            games_skipped += len(bundle_games)
+                            continue
+                    else:
+                        games_skipped += len(bundle_games)
+                        continue
+                else:
+                    # Single game logic
+                    game_name = purchase['bundle_games'][0]
+                    # Only show DLC flag dialog if game does NOT have an App ID in the spreadsheet
+                    app_id = self._find_game_in_library(game_name, sheet)
+                    if not app_id:
+        # PyQt6 imports are now at the top of the file
+                        # Create QInputDialog instance for styling
+                        input_dialog = QInputDialog(self.parent)
+                        input_dialog.setWindowTitle("DLC Purchase Detected")
+                        input_dialog.setLabelText(f"Do you want to flag '{game_name}' as a DLC and add its cost to a base game?\n\nSelect 'Yes' to choose the base game, or 'No' to treat as a regular game.")
+                        input_dialog.setComboBoxItems(["No", "Yes"])
+                        input_dialog.setStyleSheet("""
+                            QInputDialog {
+                                background-color: #2b2b2b;
+                                color: white;
+                            }
+                            QLabel {
+                                color: white;
+                            }
+                            QComboBox {
+                                background-color: #404040;
+                                color: white;
+                                border: 1px solid #666;
+                            }
+                            QComboBox QAbstractItemView {
+                                background-color: #404040;
+                                color: white;
+                            }
+                            QPushButton {
+                                background-color: #4CAF50;
+                                color: white;
+                                border: none;
+                                padding: 8px 16px;
+                                margin: 5px 2px;
+                                min-width: 80px;
+                            }
+                            QPushButton:hover {
+                                background-color: #45a049;
+                            }
+                        """)
+                        ok = input_dialog.exec()
+                        dlc_flag = input_dialog.textValue()
+                        if ok == QDialog.DialogCode.Accepted and dlc_flag == "Yes":
+                            # Prompt user to select base game from spreadsheet
+                            base_game_names = []
+                            base_game_app_ids = []
+                            for row in sheet.iter_rows(min_row=2, values_only=True):
+                                if len(row) >= 2 and row[0] and row[1]:
+                                    base_game_names.append(str(row[0]))
+                                    base_game_app_ids.append(str(row[1]))
+                            # Styled QInputDialog for getItem
+                            from PyQt6.QtWidgets import QInputDialog
+                            QInputDialog.setStyleSheet(QInputDialog(), """
+                                QInputDialog {
+                                    background-color: #2b2b2b;
+                                    color: white;
+                                }
+                                QLabel {
+                                    color: white;
+                                }
+                                QComboBox {
+                                    background-color: #404040;
+                                    color: white;
+                                    border: 1px solid #666;
+                                }
+                                QComboBox QAbstractItemView {
+                                    background-color: #404040;
+                                    color: white;
+                                }
+                                QPushButton {
+                                    background-color: #4CAF50;
+                                    color: white;
+                                    border: none;
+                                    padding: 8px 16px;
+                                    margin: 5px 2px;
+                                    min-width: 80px;
+                                }
+                                QPushButton:hover {
+                                    background-color: #45a049;
+                                }
+                            """)
+                            base_game, ok2 = QInputDialog.getItem(
+                                self.parent,
+                                "Select Base Game",
+                                f"Select the base game for DLC '{game_name}':",
+                                base_game_names,
+                                0,
+                                False
+                            )
+                            if ok2:
+                                # Find base game's row
+                                base_app_id = None
+                                for i, name in enumerate(base_game_names):
+                                    if name == base_game:
+                                        base_app_id = base_game_app_ids[i]
+                                        break
+                                if base_app_id and base_app_id in existing_games:
+                                    row_num = existing_games[base_app_id]
+                                    # Add DLC cost to base game's cost (column D)
+                                    prev_cost = sheet.cell(row=row_num, column=4).value or 0
+                                    sheet.cell(row=row_num, column=4, value=prev_cost + purchase['cost'])
+                                    # Optionally, add DLC as a separate row
+                                    new_row = sheet.max_row + 1
+                                    sheet.cell(row=new_row, column=1, value=game_name)  # DLC Name
+                                    sheet.cell(row=new_row, column=2, value="")       # DLC has no App ID
+                                    sheet.cell(row=new_row, column=3, value=0)
+                                    sheet.cell(row=new_row, column=4, value=purchase['cost'])
+                                    sheet.cell(row=new_row, column=5, value=purchase['date'])
+                                    sheet.cell(row=new_row, column=6, value="Steam")
+                                    sheet.cell(row=new_row, column=7, value="DLC")
+                                    sheet.cell(row=new_row, column=8, value=base_app_id)  # Base Game App ID
+                                    games_processed += 1
+                                    games_added += 1
+                                    continue
+                                else:
+                                    # Could not find base game
+                                    if self.parent:
+                                        self.parent.show_styled_message_box("Error", f"Base game not found for DLC '{game_name}'. Skipping.", QMessageBox.Warning)
+                                    games_skipped += 1
+                                    continue
+                            else:
+                                # User cancelled base game selection
+                                games_skipped += 1
+                                continue
+                        result = self._process_single_game(
+                            game_name, purchase['cost'], purchase['date'], "Steam",
+                            existing_games, sheet, games_processed, games_added, games_skipped
+                        )
+                        games_processed += 1
+                        if result == 'added':
+                            games_added += 1
+                        elif result == 'skipped':
+                            games_skipped += 1
+                        elif result == 'cancelled':
+                            games_skipped += 1
+                    else:
+                        # If game has App ID, just process as normal
+                        result = self._process_single_game(
+                            game_name, purchase['cost'], purchase['date'], "Steam",
+                            existing_games, sheet, games_processed, games_added, games_skipped
+                        )
+                        games_processed += 1
+                        if result == 'added':
+                            games_added += 1
+                        elif result == 'skipped':
+                            games_skipped += 1
+                        elif result == 'cancelled':
+                            games_skipped += 1
             
             # Final progress update
             progress_dialog.update_progress(
@@ -742,11 +944,11 @@ class SteamCSVImporter:
                 app_id = self._find_game_in_library(game_name, sheet)
                 if not app_id:
                     # Game not found, ask user for App ID
-                    from PyQt6.QtWidgets import QDialog
+                    # PyQt6 imports are now at the top of the file
                     dialog = GameIdInputDialog(game_name, self.parent)
                     id_result = dialog.exec()
                     
-                    if id_result == QDialog.Accepted:
+                    if id_result == QDialog.DialogCode.Accepted:
                         user_app_id = dialog.get_app_id()
                         if user_app_id and user_app_id.isdigit():
                             app_id = user_app_id
@@ -927,17 +1129,14 @@ class SteamCSVImporter:
     
     def _confirm_edition_match(self, searched_game, found_game, removed_suffix):
         """Ask user to confirm if a game edition matches the base game."""
-        from PyQt6.QtWidgets import QMessageBox
-        
+        # PyQt6 imports are now at the top of the file
+        # If no parent window, assume it's the same game (for testing)
         if not self.parent:
-            # If no parent window, assume it's the same game (for testing)
             return True
-        
         # Create confirmation dialog
         msg_box = QMessageBox(self.parent)
         msg_box.setWindowTitle("Edition Match Found")
         msg_box.setIcon(QMessageBox.Icon.Question)
-        
         msg_box.setText(f"Found potential match for edition:")
         msg_box.setInformativeText(
             f"Searched for: '{searched_game}'\n"
@@ -945,10 +1144,8 @@ class SteamCSVImporter:
             f"Removed suffix: '{removed_suffix.strip()}'\n\n"
             f"Are these the same game?"
         )
-        
         msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
-        
         # Apply dark theme styling
         msg_box.setStyleSheet("""
             QMessageBox {
@@ -970,82 +1167,7 @@ class SteamCSVImporter:
                 background-color: #45a049;
             }
         """)
-        
         result = msg_box.exec()
         return result == QMessageBox.StandardButton.Yes
-    
-    def _is_good_match(self, name1, name2):
-        """Check if two game names are a good match, including Roman numeral variations."""
-        # Don't match if one name is much shorter than the other
-        if min(len(name1), len(name2)) < 5:
-            return False
-        
-        # Don't match if length difference is too large
-        if abs(len(name1) - len(name2)) > 20:
-            return False
-        
-        # Get all variations of both names (with Roman/Arabic number conversions)
-        variations1 = normalize_numbers_in_title(name1)
-        variations2 = normalize_numbers_in_title(name2)
-        
-        # Check if any variation of name1 matches any variation of name2
-        for var1 in variations1:
-            for var2 in variations2:
-                if var1 == var2:
-                    return True
-                
-                # Also check word-based matching for the variations
-                words1 = set(var1.split())
-                words2 = set(var2.split())
-                
-                # Calculate word overlap
-                common_words = words1.intersection(words2)
-                total_words = words1.union(words2)
-                
-                if len(total_words) == 0:
-                    continue
-                
-                # Require at least 60% word overlap and at least 2 common words
-                overlap_ratio = len(common_words) / len(total_words)
-                
-                # Special case: if one name is completely contained in the other
-                # and they share significant words, it might be a match
-                if (var1 in var2 or var2 in var1) and len(common_words) >= 2 and overlap_ratio >= 0.6:
-                    return True
-                
-                # General case: require high word overlap
-                if overlap_ratio >= 0.8 and len(common_words) >= 2:
-                    return True
-        
-        return False
-    
-    def _detect_bundles(self, purchase_data):
-        """Process purchase data that already includes bundle information."""
-        # Since the CSV parsing now handles bundle detection,
-        # we just need to convert the data to the format expected by the rest of the code
-        bundle_groups = []
-        
-        for purchase in purchase_data:
-            if len(purchase['bundle_games']) > 1:
-                # This is a bundle - create individual entries for each game
-                bundle_group = []
-                for game_name in purchase['bundle_games']:
-                    bundle_group.append({
-                        'date': purchase['date'],
-                        'game': game_name,
-                        'type': purchase['type'],
-                        'cost': purchase['cost'],  # All games in bundle share the same total cost
-                        'processed': False
-                    })
-                bundle_groups.append(bundle_group)
-            else:
-                # Single game purchase - use the first (and only) game in bundle_games
-                bundle_groups.append([{
-                    'date': purchase['date'],
-                    'game': purchase['bundle_games'][0],
-                    'type': purchase['type'],
-                    'cost': purchase['cost'],
-                    'processed': False
-                }])
-        
-        return bundle_groups
+
+# ...existing code...

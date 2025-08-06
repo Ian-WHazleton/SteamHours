@@ -40,17 +40,21 @@ def get_api_key():
 
 
 # Steam API Information - will be loaded when needed
-STEAM_ID = '76561198074846013'
+STEAM_ID = '76561198074846013'  # Default fallback
 
-def fetch_steam_games():
+def fetch_steam_games(steam_id=None):
     """Fetch games data from Steam API."""
     API_KEY = get_api_key()
     if not API_KEY:
         print("Steam API key not found. Please check your .env file.")
         return []
     
+    # Use provided steam_id or fall back to global default
+    if steam_id is None:
+        steam_id = STEAM_ID
+    
     # URL for the Steam API GetOwnedGames method
-    url = f"https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={API_KEY}&steamid={STEAM_ID}&include_appinfo=true&include_played_free_games=true"
+    url = f"https://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key={API_KEY}&steamid={steam_id}&include_appinfo=true&include_played_free_games=true"
 
     # Fetching owned games from Steam API
     response = requests.get(url)
@@ -62,9 +66,13 @@ def fetch_steam_games():
         print("Failed to fetch data from Steam API.")
         return []
 
-def update_spreadsheet():
+def update_spreadsheet(steam_id=None, spreadsheet_path=None):
     """Update the spreadsheet with latest Steam game data."""
-    games_data = fetch_steam_games()
+    games_data = fetch_steam_games(steam_id)
+    
+    # Use default path if none provided
+    if spreadsheet_path is None:
+        spreadsheet_path = 'ExcelFiles/steam_games_playtime.xlsx'
     
     # Process games data
     games_list = []
@@ -89,9 +97,6 @@ def update_spreadsheet():
 
     # Convert the list to a DataFrame
     df = pd.DataFrame(games_list)
-
-    # Path to the spreadsheet (updating to match SteamRunner.py expectation)
-    spreadsheet_path = 'ExcelFiles/steam_games_playtime.xlsx'
 
     # Write the DataFrame to the spreadsheet
     if not df.empty:
